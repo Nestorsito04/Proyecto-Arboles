@@ -37,8 +37,17 @@ TreeNode* findFather(TreeNode* root, int id_father);
 int addChild(TreeNode* father, TreeNode* child);
 int buildFamilyTree(FamilyTree* tree, Person* people, int count);
 TreeNode* findCurrentKing(TreeNode* root);
-void assignNewKing(FamilyTree* tree);
+int assignNewKing(FamilyTree* tree);
 Person* findPersonById(FamilyTree* tree, int id);
 void findSuccessionLine(TreeNode* root, TreeNode** succession, int* count);
+
+// Funciones auxiliares para la sucesión
+TreeNode* findFirstLivingMaleInLine(TreeNode* start);
+TreeNode* findFirstLivingFemaleInLine(TreeNode* start);
+TreeNode* findBrother(TreeNode* root, TreeNode* person);
+TreeNode* findUncle(TreeNode* root, TreeNode* person);
+TreeNode* findAncestorWithTwoSons(TreeNode* root, TreeNode* person);
+TreeNode* findFirstLivingMaleInPrimaryLine(TreeNode* root);
+TreeNode* findFirstLivingMaleInSecondaryLine(TreeNode* root);
 
 #endif

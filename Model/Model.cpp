@@ -1,6 +1,5 @@
 #include "model.h"
-#include <stdio.h>
-#include <string.h>
+#include <cstring>
 
 void initializeTree(FamilyTree* tree) {
     tree->root = NULL;
@@ -58,7 +57,6 @@ int addChild(TreeNode* father, TreeNode* child) {
 int buildFamilyTree(FamilyTree* tree, Person* people, int count) {
     if (count == 0) return 0;
     
-    // Encontrar la raíz (primer rey, el que no tiene padre)
     TreeNode* root = NULL;
     for (int i = 0; i < count; i++) {
         if (people[i].id_father == -1 || people[i].id_father == 0) {
@@ -131,70 +129,241 @@ TreeNode* findCurrentKing(TreeNode* root) {
     return NULL;
 }
 
-TreeNode* findSuccessor(TreeNode* node) {
-    if (node == NULL) return NULL;
+TreeNode* findFirstLivingMaleInLine(TreeNode* start) {
+    if (start == NULL) return NULL;
     
-    TreeNode* successor = node->left;
-    
-    if (successor == NULL || successor->person.is_dead) {
-        if (node->right != NULL && !node->right->person.is_dead) {
-            return node->right;
-        }
-        return NULL;
+    if (!start->person.is_dead &&
+        !start->person.was_king &&
+        start->person.gender == 'H' &&
+        start->person.age < 70) {
+        return start;
     }
     
-    return successor;
+    TreeNode* candidate = findFirstLivingMaleInLine(start->left);
+    if (candidate != NULL) return candidate;
+    
+    return findFirstLivingMaleInLine(start->right);
 }
 
-static TreeNode* findNextEligible(TreeNode* root, TreeNode* exclude) {
-    if (root == NULL) return NULL;
+void collectLivingFemales(TreeNode* start, TreeNode** candidates, int* count) {
+    if (start == NULL) return;
     
-    TreeNode* queue[MAX_PEOPLE];
-    int front = 0;
-    int rear = 0;
-    queue[rear++] = root;
+    if (!start->person.is_dead &&
+        !start->person.was_king &&
+        start->person.gender == 'M' &&
+        start->person.age >= 15 &&
+        start->person.age < 70) {
+        candidates[*count] = start;
+        (*count)++;
+    }
     
-    while (front < rear) {
-        TreeNode* current = queue[front++];
-        
-        if (current != exclude && !current->person.is_dead) {
-            return current;
+    if (start->left != NULL) collectLivingFemales(start->left, candidates, count);
+    if (start->right != NULL) collectLivingFemales(start->right, candidates, count);
+}
+
+TreeNode* findFirstLivingFemaleInLine(TreeNode* start) {
+    if (start == NULL) return NULL;
+    
+    TreeNode* candidates[MAX_PEOPLE];
+    int count = 0;
+    
+    collectLivingFemales(start, candidates, &count);
+    
+    if (count == 0) return NULL;
+    
+    // Ordenar por edad (más joven primero) y por cercanía al primogénito
+    for (int i = 0; i < count - 1; i++) {
+        for (int j = i + 1; j < count; j++) {
+            if (candidates[i]->person.age > candidates[j]->person.age || 
+                (candidates[i]->person.age == candidates[j]->person.age && 
+                 candidates[i]->person.id > candidates[j]->person.id)) {
+                TreeNode* temp = candidates[i];
+                candidates[i] = candidates[j];
+                candidates[j] = temp;
+            }
         }
-        
-        if (current->left != NULL) queue[rear++] = current->left;
-        if (current->right != NULL) queue[rear++] = current->right;
+    }
+    
+    return candidates[0];
+}
+
+TreeNode* findBrother(TreeNode* root, TreeNode* person) {
+    if (root == NULL || person == NULL) return NULL;
+    
+    // Encontrar al padre
+    TreeNode* father = findFather(root, person->person.id_father);
+    if (father == NULL) return NULL;
+    
+    // Buscar hermanos (excluyendo a la persona misma)
+    if (father->left != NULL && father->left != person) {
+        return father->left;
+    }
+    if (father->right != NULL && father->right != person) {
+        return father->right;
     }
     
     return NULL;
 }
 
-void assignNewKing(FamilyTree* tree) {
-    if (tree->root == NULL) return;
+TreeNode* findUncle(TreeNode* root, TreeNode* person) {
+    if (root == NULL || person == NULL) return NULL;
+    
+    // Encontrar al padre
+    TreeNode* father = findFather(root, person->person.id_father);
+    if (father == NULL) return NULL;
+    
+    // Encontrar al abuelo
+    TreeNode* grandfather = findFather(root, father->person.id_father);
+    if (grandfather == NULL) return NULL;
+    
+    // Buscar tíos (hermanos del padre)
+    return findBrother(root, father);
+}
+
+TreeNode* findAncestorWithTwoSons(TreeNode* root, TreeNode* person) {
+    if (root == NULL || person == NULL) return NULL;
+    
+    TreeNode* current = person;
+    while (current != NULL && current != root) {
+        TreeNode* father = findFather(root, current->person.id_father);
+        if (father != NULL) {
+            // Verificar si este ancestro tiene al menos dos hijos
+            if (father->left != NULL && father->right != NULL) {
+                return father;
+            }
+        }
+        current = father;
+    }
+    
+    return NULL;
+}
+
+TreeNode* findFirstLivingMaleInPrimaryLine(TreeNode* root) {
+    if (root == NULL) return NULL;
+    
+    TreeNode* current = root;
+    while (current != NULL) {
+        if (!current->person.is_dead &&
+            !current->person.was_king &&
+            current->person.gender == 'H' &&
+            current->person.age < 70) {
+            return current;
+        }
+        current = current->left;
+    }
+    
+    return NULL;
+}
+
+TreeNode* findFirstLivingMaleInSecondaryLine(TreeNode* root) {
+    if (root == NULL) return NULL;
+    
+    if (!root->person.is_dead &&
+        !root->person.was_king &&
+        root->person.gender == 'H' &&
+        root->person.age < 70) {
+        return root;
+    }
+    
+    if (root->right != NULL) {
+        TreeNode* candidate = findFirstLivingMaleInSecondaryLine(root->right);
+        if (candidate != NULL) return candidate;
+    }
+    
+    if (root->left != NULL) {
+        TreeNode* candidate = findFirstLivingMaleInSecondaryLine(root->left);
+        if (candidate != NULL) return candidate;
+    }
+    
+    return NULL;
+}
+
+int assignNewKing(FamilyTree* tree) {
+    if (tree == NULL || tree->root == NULL) return 0;
     
     TreeNode* currentKing = findCurrentKing(tree->root);
-    TreeNode* successor = NULL;
     
-    if (currentKing != NULL) {
-        successor = findSuccessor(currentKing);
-        if (successor == NULL || successor->person.is_dead) {
-            successor = findNextEligible(tree->root, currentKing);
+    // Si no hay rey actual, intentar coronar a la raíz directamente
+    if (currentKing == NULL) {
+        currentKing = tree->root;
+        if (!currentKing->person.is_dead && !currentKing->person.is_king) {
+            currentKing->person.is_king = 1;
+            currentKing->person.was_king = 1;
+            return 1;
         }
-        
-        if (successor != NULL) {
+    }
+    
+    int needsReplacement = currentKing->person.is_dead || currentKing->person.age >= 70;
+    TreeNode* newKing = NULL;
+    
+    // REGLA 1: Buscar en hijos (primogénito varón vivo)
+    if (currentKing->left != NULL) {
+        newKing = findFirstLivingMaleInLine(currentKing->left);
+    }
+    
+    // REGLA 2: Si no hay hijos, buscar en hermanos
+    if (newKing == NULL) {
+        TreeNode* brother = findBrother(tree->root, currentKing);
+        if (brother != NULL) {
+            if (!brother->person.is_dead &&
+                !brother->person.was_king &&
+                brother->person.gender == 'H' &&
+                brother->person.age < 70) {
+                newKing = brother;
+            } else {
+                newKing = findFirstLivingMaleInLine(brother);
+            }
+        }
+    }
+    
+    // REGLA 3: Si no hay hermanos, buscar en tíos
+    if (newKing == NULL) {
+        TreeNode* uncle = findUncle(tree->root, currentKing);
+        if (uncle != NULL) {
+            if (!uncle->person.is_dead &&
+                !uncle->person.was_king &&
+                uncle->person.gender == 'H' &&
+                uncle->person.age < 70 &&
+                uncle->left == NULL && uncle->right == NULL) {
+                newKing = uncle;
+            } else {
+                newKing = findFirstLivingMaleInLine(uncle);
+            }
+        }
+    }
+    
+    // REGLA 4: Buscar ancestro con dos hijos y tomar primogénito de esa rama
+    if (newKing == NULL) {
+        TreeNode* ancestor = findAncestorWithTwoSons(tree->root, currentKing);
+        if (ancestor != NULL) {
+            newKing = findFirstLivingMaleInPrimaryLine(ancestor);
+        }
+    }
+    
+    // REGLA 5: Si no hay varones en líneas primogénitas, buscar en líneas secundarias
+    if (newKing == NULL) {
+        newKing = findFirstLivingMaleInSecondaryLine(tree->root);
+    }
+    
+    // REGLA 6: Si no hay varones, buscar mujeres
+    if (newKing == NULL) {
+        newKing = findFirstLivingFemaleInLine(tree->root);
+    }
+    
+    if (newKing == NULL) {
+        if (needsReplacement) {
             currentKing->person.is_king = 0;
             currentKing->person.was_king = 1;
+            return -1; // Rey removido pero sin sucesor
         }
-    } else {
-        successor = findNextEligible(tree->root, NULL);
+        return 0; // No se requiere cambio y no hay sucesores disponibles
     }
     
-    if (successor != NULL) {
-        successor->person.is_king = 1;
-        successor->person.was_king = 1;
-    } else if (currentKing != NULL) {
-        // No candidato valido; restaurar bandera del rey actual
-        currentKing->person.is_king = 1;
-    }
+    currentKing->person.is_king = 0;
+    currentKing->person.was_king = 1;
+    newKing->person.is_king = 1;
+    newKing->person.was_king = 1;
+    return 1; // Se asignó nuevo rey
 }
 
 Person* findPersonById(FamilyTree* tree, int id) {
@@ -246,34 +415,15 @@ void findSuccessionLine(TreeNode* root, TreeNode** succession, int* count) {
             visited[current->right->person.id] = 1;
             queue[rear++] = current->right;
         }
-        
-        // Si no hay más hijos en este nivel, buscar en las ramas de los hermanos
-        if (front >= rear) {
-            // Buscar el siguiente en la línea de sucesión según las reglas reales
-            // Esto asegura que sigamos el orden correcto de primogenitura
-            for (int i = 0; i < rear && *count < MAX_PEOPLE; i++) {
-                TreeNode* node = queue[i];
-                if (node->left != NULL && !visited[node->left->person.id]) {
-                    visited[node->left->person.id] = 1;
-                    queue[rear++] = node->left;
-                }
-                if (node->right != NULL && !visited[node->right->person.id]) {
-                    visited[node->right->person.id] = 1;
-                    queue[rear++] = node->right;
-                }
-            }
-        }
     }
     
     // Ordenar por prioridad de sucesión (primogénitos primero)
     for (int i = 0; i < *count; i++) {
         for (int j = i + 1; j < *count; j++) {
             // Priorizar por nivel en el árbol (más cercano al rey primero)
-            // y por orden de nacimiento (left antes que right)
             TreeNode* node1 = succession[i];
             TreeNode* node2 = succession[j];
             
-            // Simplificación: los que están más arriba en el árbol tienen prioridad
             if (node1->person.id > node2->person.id) {
                 TreeNode* temp = succession[i];
                 succession[i] = succession[j];
