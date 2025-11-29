@@ -6,42 +6,43 @@
 using namespace std;
 
 void displayMenu() {
-    cout << "\n=== SISTEMA DE GESTION REAL ===\n";
-    cout << "1. Mostrar arbol genealogico\n";
-    cout << "2. Mostrar rey actual\n";
-    cout << "3. Mostrar linea de sucesion\n";
-    cout << "4. Asignar nuevo rey\n";
-    cout << "5. Buscar persona por ID\n";
-    cout << "6. Salir\n";
+    cout << "\n=== SISTEMA DE GESTION REAL ===" << endl;
+    cout << "1. Mostrar arbol genealogico" << endl;
+    cout << "2. Mostrar rey actual" << endl;
+    cout << "3. Mostrar linea de sucesion" << endl;
+    cout << "4. Asignar nuevo rey" << endl;
+    cout << "5. Buscar persona por ID" << endl;
+    cout << "6. Editar persona" << endl;
+    cout << "7. Salir" << endl;
     cout << "Seleccione una opcion: ";
 }
 
 void displayPersonInfo(int id, const char* name, const char* last_name, char gender, 
                       int age, int id_father, int is_dead, int was_king, int is_king) {
-    cout << "\n=== INFORMACION DE PERSONA ===\n";
-    cout << "ID: " << id << '\n';
-    cout << "Nombre: " << name << ' ' << last_name << '\n';
-    cout << "Genero: " << gender << '\n';
-    cout << "Edad: " << age << '\n';
-    cout << "ID Padre: " << id_father << '\n';
-    cout << "Estado: " << (is_dead ? "Difunto" : "Vivo") << '\n';
-    cout << "Fue Rey: " << (was_king ? "Si" : "No") << '\n';
-    cout << "Es Rey: " << (is_king ? "Si" : "No") << '\n';
+    cout << "\n=== INFORMACION DE PERSONA ===" << endl;
+    cout << "ID: " << id << endl;
+    cout << "Nombre: " << name << " " << last_name << endl;
+    cout << "Genero: " << gender << endl;
+    cout << "Edad: " << age << endl;
+    cout << "ID Padre: " << id_father << endl;
+    cout << "Estado: " << (is_dead ? "Difunto" : "Vivo") << endl;
+    cout << "Fue Rey: " << (was_king ? "Si" : "No") << endl;
+    cout << "Es Rey: " << (is_king ? "Si" : "No") << endl;
 }
 
 void displayMessage(const char* message) {
-    cout << message << '\n';
+    cout << message << endl;
 }
 
 void displayTreeLevel(const char* text, int level) {
     for (int i = 0; i < level; i++) {
         cout << "  ";
     }
-    cout << text << '\n';
+    cout << text << endl;
 }
 
 void runApplication() {
-    cout << "=== SISTEMA DE GESTION DEL REINO ===\n";
+    cout << "=== SISTEMA DE GESTION DEL REINO ===" << endl;
     
     // Inicializar el sistema a través del controlador
     initializeSystem();
@@ -51,17 +52,7 @@ void runApplication() {
     
     while (running) {
         displayMenu();
-        string input;
-        if (!getline(cin, input)) {
-            displayMessage("Error al leer la entrada. Finalizando aplicacion.");
-            break;
-        }
-        try {
-            option = stoi(input);
-        } catch (...) {
-            displayMessage("Entrada no valida. Intente nuevamente ingresando un numero.");
-            continue;
-        }
+        cin >> option;
         
         switch (option) {
             case 1:
@@ -73,15 +64,21 @@ void runApplication() {
             case 3:
                 displaySuccessionLine();
                 break;
-            case 4:
-                assignNewKing();
-                displayMessage("Nuevo rey asignado automaticamente segun las reglas de sucesion.");
+            case 4: {
+                int result = assignNewKing();
+                if (result > 0) {
+                    displayMessage("Nuevo rey asignado automaticamente segun las reglas de sucesion.");
+                }
                 displayCurrentKing();
                 break;
+            }
             case 5:
                 searchPersonById();
                 break;
             case 6:
+                editPerson();
+                break;
+            case 7:
                 displayMessage("Saliendo del sistema...");
                 running = 0;
                 break;
