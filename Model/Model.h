@@ -1,6 +1,8 @@
 #ifndef MODEL_H
 #define MODEL_H
 
+#include <vector>
+
 #define MAX_NAME_LENGTH 50
 #define MAX_LASTNAME_LENGTH 50
 #define MAX_PEOPLE 1000
@@ -19,8 +21,7 @@ typedef struct {
 
 typedef struct TreeNode {
     Person person;
-    struct TreeNode* left;
-    struct TreeNode* right;
+    std::vector<TreeNode*> children;
 } TreeNode;
 
 typedef struct {
@@ -44,10 +45,12 @@ void findSuccessionLine(TreeNode* root, TreeNode** succession, int* count);
 // Funciones auxiliares para la sucesión
 TreeNode* findFirstLivingMaleInLine(TreeNode* start);
 TreeNode* findFirstLivingFemaleInLine(TreeNode* start);
-TreeNode* findBrother(TreeNode* root, TreeNode* person);
-TreeNode* findUncle(TreeNode* root, TreeNode* person);
+TreeNode* findFirstLivingFemaleDescendant(TreeNode* person);
 TreeNode* findAncestorWithTwoSons(TreeNode* root, TreeNode* person);
 TreeNode* findFirstLivingMaleInPrimaryLine(TreeNode* root);
 TreeNode* findFirstLivingMaleInSecondaryLine(TreeNode* root);
+
+// Función para editar persona
+int editPerson(TreeNode* person);
 
 #endif

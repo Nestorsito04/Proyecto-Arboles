@@ -6,8 +6,9 @@ void initializeSystem();
 void cleanupSystem();
 void displayFamilyTree();
 void displayCurrentKing();
-void assignNewKing();
+int assignNewKing();
 void searchPersonById();
 void displaySuccessionLine();
+void editPerson();
 
 #endif

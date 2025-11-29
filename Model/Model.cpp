@@ -1,5 +1,8 @@
 #include "model.h"
 #include <cstring>
+#include <iostream>
+#include <string>
+using namespace std;
 
 void initializeTree(FamilyTree* tree) {
     tree->root = NULL;
@@ -9,49 +12,43 @@ void initializeTree(FamilyTree* tree) {
 TreeNode* createTreeNode(Person p) {
     TreeNode* newNode = new TreeNode;
     newNode->person = p;
-    newNode->left = NULL;
-    newNode->right = NULL;
     return newNode;
 }
 
 void destroyTree(TreeNode* root) {
     if (root == NULL) return;
-    destroyTree(root->left);
-    destroyTree(root->right);
+    for (TreeNode* child : root->children) {
+        destroyTree(child);
+    }
     delete root;
 }
 
 TreeNode* findPerson(TreeNode* root, int id) {
     if (root == NULL) return NULL;
     if (root->person.id == id) return root;
-    
-    TreeNode* found = findPerson(root->left, id);
-    if (found != NULL) return found;
-    
-    return findPerson(root->right, id);
+
+    for (TreeNode* child : root->children) {
+        TreeNode* found = findPerson(child, id);
+        if (found != NULL) return found;
+    }
+    return NULL;
 }
 
 TreeNode* findFather(TreeNode* root, int id_father) {
     if (root == NULL) return NULL;
     if (root->person.id == id_father) return root;
-    
-    TreeNode* found = findFather(root->left, id_father);
-    if (found != NULL) return found;
-    
-    return findFather(root->right, id_father);
+
+    for (TreeNode* child : root->children) {
+        TreeNode* found = findFather(child, id_father);
+        if (found != NULL) return found;
+    }
+    return NULL;
 }
 
 int addChild(TreeNode* father, TreeNode* child) {
     if (father == NULL || child == NULL) return 0;
-    
-    if (father->left == NULL) {
-        father->left = child;
-        return 1;
-    } else if (father->right == NULL) {
-        father->right = child;
-        return 1;
-    }
-    return 0;
+    father->children.push_back(child);
+    return 1;
 }
 
 int buildFamilyTree(FamilyTree* tree, Person* people, int count) {
@@ -122,8 +119,9 @@ TreeNode* findCurrentKing(TreeNode* root) {
             return current;
         }
         
-        if (current->right != NULL) stack[++top] = current->right;
-        if (current->left != NULL) stack[++top] = current->left;
+        for (int i = static_cast<int>(current->children.size()) - 1; i >= 0; --i) {
+            stack[++top] = current->children[i];
+        }
     }
     
     return NULL;
@@ -139,10 +137,12 @@ TreeNode* findFirstLivingMaleInLine(TreeNode* start) {
         return start;
     }
     
-    TreeNode* candidate = findFirstLivingMaleInLine(start->left);
-    if (candidate != NULL) return candidate;
+    for (TreeNode* child : start->children) {
+        TreeNode* candidate = findFirstLivingMaleInLine(child);
+        if (candidate != NULL) return candidate;
+    }
     
-    return findFirstLivingMaleInLine(start->right);
+    return NULL;
 }
 
 void collectLivingFemales(TreeNode* start, TreeNode** candidates, int* count) {
@@ -157,8 +157,9 @@ void collectLivingFemales(TreeNode* start, TreeNode** candidates, int* count) {
         (*count)++;
     }
     
-    if (start->left != NULL) collectLivingFemales(start->left, candidates, count);
-    if (start->right != NULL) collectLivingFemales(start->right, candidates, count);
+    for (TreeNode* child : start->children) {
+        collectLivingFemales(child, candidates, count);
+    }
 }
 
 TreeNode* findFirstLivingFemaleInLine(TreeNode* start) {
@@ -187,37 +188,17 @@ TreeNode* findFirstLivingFemaleInLine(TreeNode* start) {
     return candidates[0];
 }
 
-TreeNode* findBrother(TreeNode* root, TreeNode* person) {
-    if (root == NULL || person == NULL) return NULL;
-    
-    // Encontrar al padre
-    TreeNode* father = findFather(root, person->person.id_father);
-    if (father == NULL) return NULL;
-    
-    // Buscar hermanos (excluyendo a la persona misma)
-    if (father->left != NULL && father->left != person) {
-        return father->left;
-    }
-    if (father->right != NULL && father->right != person) {
-        return father->right;
+TreeNode* findFirstLivingFemaleDescendant(TreeNode* person) {
+    if (person == NULL) return NULL;
+
+    TreeNode* candidate = NULL;
+
+    for (TreeNode* child : person->children) {
+        candidate = findFirstLivingFemaleInLine(child);
+        if (candidate != NULL) return candidate;
     }
     
     return NULL;
-}
-
-TreeNode* findUncle(TreeNode* root, TreeNode* person) {
-    if (root == NULL || person == NULL) return NULL;
-    
-    // Encontrar al padre
-    TreeNode* father = findFather(root, person->person.id_father);
-    if (father == NULL) return NULL;
-    
-    // Encontrar al abuelo
-    TreeNode* grandfather = findFather(root, father->person.id_father);
-    if (grandfather == NULL) return NULL;
-    
-    // Buscar tíos (hermanos del padre)
-    return findBrother(root, father);
 }
 
 TreeNode* findAncestorWithTwoSons(TreeNode* root, TreeNode* person) {
@@ -228,7 +209,7 @@ TreeNode* findAncestorWithTwoSons(TreeNode* root, TreeNode* person) {
         TreeNode* father = findFather(root, current->person.id_father);
         if (father != NULL) {
             // Verificar si este ancestro tiene al menos dos hijos
-            if (father->left != NULL && father->right != NULL) {
+            if (father->children.size() >= 2) {
                 return father;
             }
         }
@@ -249,7 +230,8 @@ TreeNode* findFirstLivingMaleInPrimaryLine(TreeNode* root) {
             current->person.age < 70) {
             return current;
         }
-        current = current->left;
+        if (current->children.empty()) break;
+        current = current->children[0];
     }
     
     return NULL;
@@ -257,22 +239,20 @@ TreeNode* findFirstLivingMaleInPrimaryLine(TreeNode* root) {
 
 TreeNode* findFirstLivingMaleInSecondaryLine(TreeNode* root) {
     if (root == NULL) return NULL;
-    
     if (!root->person.is_dead &&
         !root->person.was_king &&
         root->person.gender == 'H' &&
         root->person.age < 70) {
         return root;
     }
-    
-    if (root->right != NULL) {
-        TreeNode* candidate = findFirstLivingMaleInSecondaryLine(root->right);
+
+    for (size_t i = 1; i < root->children.size(); ++i) {
+        TreeNode* candidate = findFirstLivingMaleInLine(root->children[i]);
         if (candidate != NULL) return candidate;
     }
-    
-    if (root->left != NULL) {
-        TreeNode* candidate = findFirstLivingMaleInSecondaryLine(root->left);
-        if (candidate != NULL) return candidate;
+
+    if (!root->children.empty()) {
+        return findFirstLivingMaleInSecondaryLine(root->children[0]);
     }
     
     return NULL;
@@ -297,37 +277,53 @@ int assignNewKing(FamilyTree* tree) {
     TreeNode* newKing = NULL;
     
     // REGLA 1: Buscar en hijos (primogénito varón vivo)
-    if (currentKing->left != NULL) {
-        newKing = findFirstLivingMaleInLine(currentKing->left);
+    for (TreeNode* child : currentKing->children) {
+        newKing = findFirstLivingMaleInLine(child);
+        if (newKing != NULL) break;
     }
     
     // REGLA 2: Si no hay hijos, buscar en hermanos
     if (newKing == NULL) {
-        TreeNode* brother = findBrother(tree->root, currentKing);
-        if (brother != NULL) {
-            if (!brother->person.is_dead &&
-                !brother->person.was_king &&
-                brother->person.gender == 'H' &&
-                brother->person.age < 70) {
-                newKing = brother;
-            } else {
-                newKing = findFirstLivingMaleInLine(brother);
+        TreeNode* father = findFather(tree->root, currentKing->person.id_father);
+        if (father != NULL) {
+            for (TreeNode* sibling : father->children) {
+                if (sibling == currentKing) continue;
+                if (!sibling->person.is_dead &&
+                    !sibling->person.was_king &&
+                    sibling->person.gender == 'H' &&
+                    sibling->person.age < 70) {
+                    newKing = sibling;
+                    break;
+                }
+                TreeNode* candidate = findFirstLivingMaleInLine(sibling);
+                if (candidate != NULL) {
+                    newKing = candidate;
+                    break;
+                }
             }
         }
     }
     
     // REGLA 3: Si no hay hermanos, buscar en tíos
     if (newKing == NULL) {
-        TreeNode* uncle = findUncle(tree->root, currentKing);
-        if (uncle != NULL) {
-            if (!uncle->person.is_dead &&
-                !uncle->person.was_king &&
-                uncle->person.gender == 'H' &&
-                uncle->person.age < 70 &&
-                uncle->left == NULL && uncle->right == NULL) {
-                newKing = uncle;
-            } else {
-                newKing = findFirstLivingMaleInLine(uncle);
+        TreeNode* father = findFather(tree->root, currentKing->person.id_father);
+        TreeNode* grandfather = father ? findFather(tree->root, father->person.id_father) : NULL;
+        if (grandfather != NULL) {
+            for (TreeNode* uncle : grandfather->children) {
+                if (uncle == father) continue;
+                if (!uncle->person.is_dead &&
+                    !uncle->person.was_king &&
+                    uncle->person.gender == 'H' &&
+                    uncle->person.age < 70 &&
+                    uncle->children.empty()) {
+                    newKing = uncle;
+                    break;
+                }
+                TreeNode* candidate = findFirstLivingMaleInLine(uncle);
+                if (candidate != NULL) {
+                    newKing = candidate;
+                    break;
+                }
             }
         }
     }
@@ -345,7 +341,12 @@ int assignNewKing(FamilyTree* tree) {
         newKing = findFirstLivingMaleInSecondaryLine(tree->root);
     }
     
-    // REGLA 6: Si no hay varones, buscar mujeres
+    // REGLA 6: Priorizar mujeres dentro de la descendencia directa del rey actual
+    if (newKing == NULL) {
+        newKing = findFirstLivingFemaleDescendant(currentKing);
+    }
+
+    // REGLA 7: Si no hay varones ni descendencia femenina directa, buscar mujeres en todo el arbol
     if (newKing == NULL) {
         newKing = findFirstLivingFemaleInLine(tree->root);
     }
@@ -406,14 +407,12 @@ void findSuccessionLine(TreeNode* root, TreeNode** succession, int* count) {
             (*count)++;
         }
         
-        // Encolar hijos en orden de primogenitura (primero left, luego right)
-        if (current->left != NULL && !visited[current->left->person.id]) {
-            visited[current->left->person.id] = 1;
-            queue[rear++] = current->left;
-        }
-        if (current->right != NULL && !visited[current->right->person.id]) {
-            visited[current->right->person.id] = 1;
-            queue[rear++] = current->right;
+        // Encolar hijos en orden de primogenitura
+        for (TreeNode* child : current->children) {
+            if (child != NULL && !visited[child->person.id]) {
+                visited[child->person.id] = 1;
+                queue[rear++] = child;
+            }
         }
     }
     
@@ -431,4 +430,240 @@ void findSuccessionLine(TreeNode* root, TreeNode** succession, int* count) {
             }
         }
     }
+}
+
+int editPerson(TreeNode* person) {
+    if (person == nullptr) {
+        cout << "Error: Persona no valida." << endl;
+        return 0;
+    }
+    
+    cout << "\n=== EDITANDO PERSONA ===" << endl;
+    cout << "ID: " << person->person.id << " (No editable)" << endl;
+    cout << "ID Padre: " << person->person.id_father << " (No editable)" << endl;
+    cout << "Informacion actual:" << endl;
+    cout << "Nombre: " << person->person.name << endl;
+    cout << "Apellido: " << person->person.last_name << endl;
+    cout << "Genero: " << person->person.gender << endl;
+    cout << "Edad: " << person->person.age << endl;
+    cout << "Estado: " << (person->person.is_dead ? "Difunto" : "Vivo") << endl;
+    cout << "Fue Rey: " << (person->person.was_king ? "Si" : "No") << endl;
+    cout << "Es Rey: " << (person->person.is_king ? "Si" : "No") << endl;
+    
+    int option;
+    cout << "\n¿Que desea hacer?" << endl;
+    cout << "1. Editar informacion especifica" << endl;
+    cout << "2. Editar toda la informacion" << endl;
+    cout << "3. Cancelar" << endl;
+    cout << "Seleccione una opcion: ";
+    cin >> option;
+    
+    if (option == 3) {
+        cout << "Edicion cancelada." << endl;
+        return 0;
+    }
+    
+    if (option == 1) {
+        // Edición específica
+        cout << "\n¿Que campo desea editar?" << endl;
+        cout << "1. Nombre" << endl;
+        cout << "2. Apellido" << endl;
+        cout << "3. Genero" << endl;
+        cout << "4. Edad" << endl;
+        cout << "5. Estado (Vivo/Difunto)" << endl;
+        cout << "6. Fue Rey" << endl;
+        cout << "7. Es Rey" << endl;
+        cout << "8. Cancelar" << endl;
+        cout << "Seleccione una opcion: ";
+        
+        int fieldOption;
+        cin >> fieldOption;
+        
+        switch (fieldOption) {
+            case 1: {
+                cout << "Nuevo nombre: ";
+                string newName;
+                cin.ignore();
+                getline(cin, newName);
+                strncpy(person->person.name, newName.c_str(), MAX_NAME_LENGTH - 1);
+                person->person.name[MAX_NAME_LENGTH - 1] = '\0';
+                cout << "Nombre actualizado correctamente." << endl;
+                break;
+            }
+            case 2: {
+                cout << "Nuevo apellido: ";
+                string newLastName;
+                cin.ignore();
+                getline(cin, newLastName);
+                strncpy(person->person.last_name, newLastName.c_str(), MAX_LASTNAME_LENGTH - 1);
+                person->person.last_name[MAX_LASTNAME_LENGTH - 1] = '\0';
+                cout << "Apellido actualizado correctamente." << endl;
+                break;
+            }
+            case 3: {
+                cout << "Nuevo genero (H/M): ";
+                char newGender;
+                cin >> newGender;
+                if (newGender == 'H' || newGender == 'M') {
+                    person->person.gender = newGender;
+                    cout << "Genero actualizado correctamente." << endl;
+                } else {
+                    cout << "Genero no valido. Debe ser H o M." << endl;
+                    return 0;
+                }
+                break;
+            }
+            case 4: {
+                cout << "Nueva edad: ";
+                int newAge;
+                cin >> newAge;
+                if (newAge >= 0 && newAge <= 150) {
+                    person->person.age = newAge;
+                    cout << "Edad actualizada correctamente." << endl;
+                    
+                    // Verificar si el rey supera los 70 años
+                    if (person->person.is_king && newAge >= 70) {
+                        cout << "¡El rey ha superado los 70 años! Se asignara un nuevo rey automaticamente." << endl;
+                    }
+                } else {
+                    cout << "Edad no valida. Debe estar entre 0 y 150." << endl;
+                    return 0;
+                }
+                break;
+            }
+            case 5: {
+                cout << "Nuevo estado (0=Vivo, 1=Difunto): ";
+                int newState;
+                cin >> newState;
+                if (newState == 0 || newState == 1) {
+                    person->person.is_dead = newState;
+                    cout << "Estado actualizado correctamente." << endl;
+                    
+                    // Verificar si el rey ha muerto
+                    if (person->person.is_king && newState == 1) {
+                        cout << "¡El rey ha muerto! Se asignara un nuevo rey automaticamente." << endl;
+                    }
+                } else {
+                    cout << "Estado no valido. Debe ser 0 o 1." << endl;
+                    return 0;
+                }
+                break;
+            }
+            case 6: {
+                cout << "¿Fue rey? (0=No, 1=Si): ";
+                int newWasKing;
+                cin >> newWasKing;
+                if (newWasKing == 0 || newWasKing == 1) {
+                    person->person.was_king = newWasKing;
+                    cout << "Estado 'Fue Rey' actualizado correctamente." << endl;
+                } else {
+                    cout << "Valor no valido. Debe ser 0 o 1." << endl;
+                    return 0;
+                }
+                break;
+            }
+            case 7: {
+                cout << "¿Es rey? (0=No, 1=Si): ";
+                int newIsKing;
+                cin >> newIsKing;
+                if (newIsKing == 0 || newIsKing == 1) {
+                    person->person.is_king = newIsKing;
+                    cout << "Estado 'Es Rey' actualizado correctamente." << endl;
+                } else {
+                    cout << "Valor no valido. Debe ser 0 o 1." << endl;
+                    return 0;
+                }
+                break;
+            }
+            case 8:
+                cout << "Edicion cancelada." << endl;
+                return 0;
+            default:
+                cout << "Opcion no valida." << endl;
+                return 0;
+        }
+    } 
+    else if (option == 2) {
+        // Edición completa
+        cout << "\n=== EDITANDO TODA LA INFORMACION ===" << endl;
+        
+        // Nombre
+        cout << "Nuevo nombre: ";
+        string newName;
+        cin.ignore();
+        getline(cin, newName);
+        strncpy(person->person.name, newName.c_str(), MAX_NAME_LENGTH - 1);
+        person->person.name[MAX_NAME_LENGTH - 1] = '\0';
+        
+        // Apellido
+        cout << "Nuevo apellido: ";
+        string newLastName;
+        getline(cin, newLastName);
+        strncpy(person->person.last_name, newLastName.c_str(), MAX_LASTNAME_LENGTH - 1);
+        person->person.last_name[MAX_LASTNAME_LENGTH - 1] = '\0';
+        
+        // Género
+        cout << "Nuevo genero (H/M): ";
+        char newGender;
+        cin >> newGender;
+        while (newGender != 'H' && newGender != 'M') {
+            cout << "Genero no valido. Debe ser H o M: ";
+            cin >> newGender;
+        }
+        person->person.gender = newGender;
+        
+        // Edad
+        cout << "Nueva edad: ";
+        int newAge;
+        cin >> newAge;
+        while (newAge < 0 || newAge > 150) {
+            cout << "Edad no valida. Debe estar entre 0 y 150: ";
+            cin >> newAge;
+        }
+        person->person.age = newAge;
+        
+        // Estado
+        cout << "Nuevo estado (0=Vivo, 1=Difunto): ";
+        int newState;
+        cin >> newState;
+        while (newState != 0 && newState != 1) {
+            cout << "Estado no valido. Debe ser 0 o 1: ";
+            cin >> newState;
+        }
+        person->person.is_dead = newState;
+        
+        // Fue Rey
+        cout << "¿Fue rey? (0=No, 1=Si): ";
+        int newWasKing;
+        cin >> newWasKing;
+        while (newWasKing != 0 && newWasKing != 1) {
+            cout << "Valor no valido. Debe ser 0 o 1: ";
+            cin >> newWasKing;
+        }
+        person->person.was_king = newWasKing;
+        
+        // Es Rey
+        cout << "¿Es rey? (0=No, 1=Si): ";
+        int newIsKing;
+        cin >> newIsKing;
+        while (newIsKing != 0 && newIsKing != 1) {
+            cout << "Valor no valido. Debe ser 0 o 1: ";
+            cin >> newIsKing;
+        }
+        person->person.is_king = newIsKing;
+        
+        cout << "Toda la informacion ha sido actualizada correctamente." << endl;
+        
+        // Verificar condiciones especiales
+        if (person->person.is_king) {
+            if (person->person.is_dead) {
+                cout << "¡ADVERTENCIA: El rey esta marcado como difunto!" << endl;
+            }
+            if (person->person.age >= 70) {
+                cout << "¡ADVERTENCIA: El rey ha superado los 70 años!" << endl;
+            }
+        }
+    }
+    
+    return 1;
 }

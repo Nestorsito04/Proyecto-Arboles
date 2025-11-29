@@ -2,6 +2,7 @@
 #include "../model/model.h"
 #include "../view/view.h"
 #include <iostream>
+#include <fstream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,6 +12,59 @@ using namespace std;
 static FamilyTree tree;
 static Person people[MAX_PEOPLE];
 static int personCount = 0;
+static const char* DATA_FILE = "../bin/familia_real.csv";
+
+static void syncTreeToPeople(TreeNode* node) {
+    if (node == NULL) return;
+    for (int i = 0; i < personCount; i++) {
+        if (people[i].id == node->person.id) {
+            people[i] = node->person;
+            break;
+        }
+    }
+    for (TreeNode* child : node->children) {
+        syncTreeToPeople(child);
+    }
+}
+
+static int savePeopleToCSV(const char* filename) {
+    if (filename == NULL) return 0;
+    ofstream file(filename, ios::trunc);
+    if (!file.is_open()) {
+        return 0;
+    }
+    file << "id,name,last_name,gender,age,id_father,is_dead,was_king,is_king\n";
+    for (int i = 0; i < personCount; i++) {
+        Person& p = people[i];
+        file << p.id << ','
+             << p.name << ','
+             << p.last_name << ','
+             << p.gender << ','
+             << p.age << ','
+             << p.id_father << ','
+             << p.is_dead << ','
+             << p.was_king << ','
+             << p.is_king << '\n';
+    }
+    return file.good();
+}
+
+static void persistChanges() {
+    if (tree.root == NULL) return;
+    syncTreeToPeople(tree.root);
+    if (!savePeopleToCSV(DATA_FILE)) {
+        displayMessage("Advertencia: No se pudieron guardar los cambios en 'familia_real.csv'.");
+    }
+}
+
+static int applySuccessionRules() {
+    if (tree.root == NULL) return 0;
+    int result = assignNewKing(&tree);
+    if (result != 0) {
+        persistChanges();
+    }
+    return result;
+}
 
 // Función auxiliar recursiva para mostrar el árbol
 void displayTreeRecursive(TreeNode* node, int level) {
@@ -25,8 +79,9 @@ void displayTreeRecursive(TreeNode* node, int level) {
     
     displayTreeLevel(buffer, level);
     
-    displayTreeRecursive(node->left, level + 1);
-    displayTreeRecursive(node->right, level + 1);
+    for (TreeNode* child : node->children) {
+        displayTreeRecursive(child, level + 1);
+    }
 }
 
 int loadFromCSV(const char* filename, Person* people, int maxPeople) {
@@ -81,7 +136,7 @@ void initializeSystem() {
     initializeTree(&tree);
     
     // Intentar cargar desde el archivo CSV en la carpeta bin
-    personCount = loadFromCSV("bin/familia_real.csv", people, MAX_PEOPLE);
+    personCount = loadFromCSV(DATA_FILE, people, MAX_PEOPLE);
     
     if (personCount == 0) {
         displayMessage("Error: No se pudo cargar el archivo 'familia_real.csv' desde la carpeta bin.");
@@ -93,7 +148,7 @@ void initializeSystem() {
         displayMessage("Arbol genealogico construido exitosamente.");
         
         if (findCurrentKing(tree.root) == NULL) {
-            assignNewKing(&tree);
+            applySuccessionRules();
         }
     } else {
         displayMessage("Error: No se pudo construir el arbol genealogico.");
@@ -130,12 +185,18 @@ void displayCurrentKing() {
     }
 }
 
-void assignNewKing() {
+int assignNewKing() {
     if (tree.root == NULL) {
         displayMessage("No hay datos cargados. No se puede asignar un nuevo rey.");
-        return;
+        return 0;
     }
-    assignNewKing(&tree);
+    int result = applySuccessionRules();
+    if (result == -1) {
+        displayMessage("No se encontro ningun sucesor vivo. El trono queda vacante.");
+    } else if (result == 0) {
+        displayMessage("El rey actual continua reinando.");
+    }
+    return result;
 }
 
 void searchPersonById() {
@@ -229,5 +290,42 @@ void displaySuccessionLine() {
             }
         }
         cout << ")\n";
+    }
+}
+void editPerson() {
+    if (tree.root == NULL) {
+        displayMessage("No hay datos cargados. No se puede editar personas.");
+        return;
+    }
+    
+    int id;
+    cout << "Ingrese ID de la persona a editar: ";
+    cin >> id;
+    
+    TreeNode* personNode = findPerson(tree.root, id);
+    if (personNode == NULL) {
+        displayMessage("Persona no encontrada.");
+        return;
+    }
+    
+    // Mostrar información actual antes de editar
+    cout << "\n=== INFORMACION ACTUAL ===" << endl;
+    displayPersonInfo(personNode->person.id, personNode->person.name, personNode->person.last_name,
+                     personNode->person.gender, personNode->person.age, personNode->person.id_father,
+                     personNode->person.is_dead, personNode->person.was_king, personNode->person.is_king);
+    
+    // Llamar a la función de edición del modelo
+    int result = editPerson(personNode);
+    
+    if (result) {
+        displayMessage("Persona editada exitosamente.");
+        
+        // Si se editó el rey actual, verificar si necesita sucesión
+        if (personNode->person.is_king && 
+            (personNode->person.is_dead || personNode->person.age >= 70)) {
+            cout << "El rey actual ha cambiado de estado. Verificando sucesion..." << endl;
+            applySuccessionRules();
+        }
+        persistChanges();
     }
 }
